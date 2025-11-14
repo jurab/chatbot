@@ -80,6 +80,27 @@
         border-bottom-left-radius: 4px;
       }
 
+      .message.assistant.pending {
+        color: var(--muted);
+        font-style: italic;
+        animation: awaitingPulse 1.2s ease-in-out infinite;
+      }
+
+      @keyframes awaitingPulse {
+        0% {
+          opacity: 0.4;
+          letter-spacing: 0px;
+        }
+        50% {
+          opacity: 1;
+          letter-spacing: 0.5px;
+        }
+        100% {
+          opacity: 0.4;
+          letter-spacing: 0px;
+        }
+      }
+
       .search {
         position: relative;
         background: #242834;
@@ -296,7 +317,7 @@
       />
 
       <p class="note">
-        prototype only, messages come from sqlite, not from god.
+          wired to openai, running on sqlite. local toy, zero guarantees
       </p>
     </main>
 
@@ -362,9 +383,14 @@
         const es = new EventSource(url);
 
         let buffer = "";
-        let bubble = null;
 
-        // token events: gradually build assistant text
+        // create a placeholder bubble right away
+        let bubble = appendMessageBubble({
+          role: "assistant",
+          text: "awaiting openai...",
+        });
+        if (bubble) bubble.classList.add("pending");
+
         es.addEventListener("token", (e) => {
           if (!bubble) {
             bubble = appendMessageBubble({
@@ -372,13 +398,20 @@
               text: "",
             });
           }
+
+          // first real token: clear pending state
+          if (bubble.classList.contains("pending")) {
+            bubble.classList.remove("pending");
+            bubble.textContent = "";
+            buffer = "";
+          }
+
           buffer += e.data;
           bubble.textContent = buffer;
           messagesEl.scrollTop = messagesEl.scrollHeight;
         });
 
-        // done event: close stream + re-enable send
-        es.addEventListener("done", (e) => {
+        es.addEventListener("done", () => {
           es.close();
           setSending(false);
         });
