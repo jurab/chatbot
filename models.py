@@ -1,6 +1,7 @@
 # models.py
 from sqlalchemy import (
     Column,
+    Float,
     Integer,
     String,
     Text,
@@ -61,3 +62,12 @@ class Message(Base):
             name="ck_message_role",
         ),
     )
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(128), nullable=False)
+    price = Column(Float, nullable=False)
+    description = Column(Text, nullable=False)
