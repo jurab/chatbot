@@ -11,7 +11,7 @@ class MessageBase(BaseModel):
 
 
 class MessageCreate(MessageBase):
-    pass
+    key: str | None = None
 
 
 class MessageRead(MessageBase):

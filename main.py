@@ -1,29 +1,22 @@
-# main.py
-
-import time
-from typing import List
-
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.orm import Session
+import asyncio
 
 import models
 import schemas
 from database import Base, engine, SessionLocal
 
-# create tables on startup (prototype degenerate migration strategy)
 Base.metadata.create_all(bind=engine)
 
+app = FastAPI()
 
-app = FastAPI(title="chat backend prototype")
-
-
-# dev-only, totally open. tighten later.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # or ["http://localhost:5500", ...]
-    allow_credentials=False,
-    allow_methods=["*"],          # allow POST, OPTIONS, etc
+    allow_origins=["*"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -37,9 +30,7 @@ def get_db():
 
 
 @app.post("/conversations", response_model=schemas.ConversationRead)
-def create_conversation(
-    _: schemas.ConversationCreate, db: Session = Depends(get_db)
-):
+def create_conversation(_: schemas.ConversationCreate, db: Session = Depends(get_db)):
     conv = models.Conversation()
     db.add(conv)
     db.commit()
@@ -47,65 +38,72 @@ def create_conversation(
     return conv
 
 
-@app.get("/conversations", response_model=List[schemas.ConversationRead])
-def list_conversations(db: Session = Depends(get_db)):
-    return db.query(models.Conversation).order_by(models.Conversation.id.desc()).all()
-
-
-@app.get(
-    "/conversations/{conversation_id}",
-    response_model=schemas.ConversationRead,
-)
-def get_conversation(conversation_id: int, db: Session = Depends(get_db)):
-    conv = (
-        db.query(models.Conversation)
-        .filter(models.Conversation.id == conversation_id)
-        .first()
-    )
-    if not conv:
-        raise HTTPException(status_code=404, detail="conversation not found")
-    return conv
-
-
-# main.py (only this endpoint changed)
-@app.post(
-    "/conversations/{conversation_id}/messages",
-    response_model=schemas.MessageRead,
-)
-def add_message(
+@app.post("/conversations/{conversation_id}/messages")
+def add_user_message(
     conversation_id: int,
     payload: schemas.MessageCreate,
     db: Session = Depends(get_db),
 ):
-    conv = (
-        db.query(models.Conversation)
-        .filter(models.Conversation.id == conversation_id)
-        .first()
-    )
+    conv = db.query(models.Conversation).filter_by(id=conversation_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="conversation not found")
 
-    # 1) store user message
+    # stash api key on the conversation for later use
+    if getattr(payload, "key", None):
+        conv.api_key = payload.key
+
+    # store the user message
     user_msg = models.Message(
         conversation_id=conversation_id,
         role="user",
         text=payload.text,
     )
     db.add(user_msg)
-    db.flush()  # get id without committing yet
-
-    # 2) create mock assistant reply
-    assistant_text = f"user message received, text: {payload.text}"
-    assistant_msg = models.Message(
-        conversation_id=conversation_id,
-        role="assistant",
-        text=assistant_text,
-    )
-    db.add(assistant_msg)
-
+    # conv is already in the session, just commit
     db.commit()
-    db.refresh(assistant_msg)
 
-    time.sleep(2.5)
-    # return the assistant message (frontend already has the user one optimistically)
-    return assistant_msg
+    return JSONResponse({"status": "ok"})
+
+
+@app.get("/conversations/{conversation_id}/stream")
+async def stream_assistant(conversation_id: int, db: Session = Depends(get_db)):
+
+    conv = db.query(models.Conversation).filter_by(id=conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="conversation not found")
+
+    # get last user message (just for mock)
+    last_user = (
+        db.query(models.Message)
+        .filter_by(conversation_id=conversation_id, role="user")
+        .order_by(models.Message.id.desc())
+        .first()
+    )
+    if not last_user:
+        raise HTTPException(status_code=400, detail="no user message to respond to")
+
+    api_key = getattr(conv, "api_key", None) or "<no key set>"
+
+    reply = f"user message received, text: {last_user.text}, key: {api_key}"
+
+    async def event_generator():
+        accumulated = ""
+
+        for char in reply:
+            accumulated += char
+            yield {"event": "token", "data": char}
+            await asyncio.sleep(0.02)
+
+        # final event
+        yield {"event": "done", "data": "[DONE]"}
+
+        # write complete assistant message to db
+        assistant_msg = models.Message(
+            conversation_id=conversation_id,
+            role="assistant",
+            text=accumulated,
+        )
+        db.add(assistant_msg)
+        db.commit()
+
+    return EventSourceResponse(event_generator())

@@ -23,6 +23,8 @@ class Conversation(Base):
         server_default=func.now(),
         nullable=False,
     )
+    api_key = Column(Text, nullable=True)
+
 
     messages = relationship(
         "Message",

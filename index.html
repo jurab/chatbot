@@ -108,7 +108,7 @@
       .send-btn.sending {
         opacity: 0.6;
         cursor: default;
-        pointer-events: none; /* block clicks/hover while waiting */
+        pointer-events: none;
       }
 
       .icon-btn {
@@ -288,6 +288,13 @@
         </div>
       </div>
 
+      <input
+        id="apiKeyInput"
+        type="text"
+        placeholder="openai api key"
+        style="width: 100%; padding: 6px 10px; border-radius: 8px; background:#1a1d24; border:1px solid #333; color:#e5e7ef; font-size:14px;"
+      />
+
       <p class="note">
         prototype only, messages come from sqlite, not from god.
       </p>
@@ -306,13 +313,17 @@
       let hideT;
       let isSending = false;
 
+      let apiKeyLocked = false;
+      const apiKeyInput = document.getElementById("apiKeyInput");
+
       function appendMessageBubble(msg) {
-        if (!messagesEl) return;
+        if (!messagesEl) return null;
         const el = document.createElement("div");
         el.classList.add("message", msg.role || "user");
         el.textContent = msg.text;
         messagesEl.appendChild(el);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+        return el;
       }
 
       function setSending(state) {
@@ -346,8 +357,41 @@
         return conversationId;
       }
 
+      function streamAssistant(convId) {
+        const url = `${API_BASE}/conversations/${convId}/stream`;
+        const es = new EventSource(url);
+
+        let buffer = "";
+        let bubble = null;
+
+        // token events: gradually build assistant text
+        es.addEventListener("token", (e) => {
+          if (!bubble) {
+            bubble = appendMessageBubble({
+              role: "assistant",
+              text: "",
+            });
+          }
+          buffer += e.data;
+          bubble.textContent = buffer;
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        });
+
+        // done event: close stream + re-enable send
+        es.addEventListener("done", (e) => {
+          es.close();
+          setSending(false);
+        });
+
+        es.onerror = (e) => {
+          console.error("sse error", e);
+          es.close();
+          setSending(false);
+        };
+      }
+
       async function sendMessage() {
-        if (isSending) return; // don’t spam
+        if (isSending) return;
         const value = input.value.trim();
         if (!value) return;
 
@@ -360,9 +404,17 @@
           setSending(true);
           const convId = await ensureConversation();
 
+          const key = document.getElementById("apiKeyInput").value.trim();
+
+          if (!apiKeyLocked) {
+            apiKeyLocked = true;
+            apiKeyInput.style.display = "none";
+          }
+
           const payload = {
             role: "user",
-            text: value
+            text: value,
+            key: key  // let the backend choke on it later
           };
 
           const res = await fetch(
@@ -370,34 +422,26 @@
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload)
+              body: JSON.stringify(payload),
             }
           );
 
           if (!res.ok) {
             console.error("failed to send message", res.status);
-            // you COULD rollback ui here (remove last bubble), but for prototype let’s not
+            setSending(false);
             return;
           }
 
-          // backend returns the assistant message
-          const assistantMsg = await res.json();
-          console.log(
-            "ASSISTANT =>",
-            assistantMsg,
-            selectedReaction ? `reaction: ${selectedReaction}` : ""
-          );
-
-          appendMessageBubble(assistantMsg);
+          // backend accepted user msg, now stream assistant reply
+          streamAssistant(convId);
         } catch (err) {
           console.error("sendMessage error:", err);
-        } finally {
           setSending(false);
         }
       }
 
       const openMenu = () => {
-        if (isSending) return; // no menu while locked
+        if (isSending) return;
         clearTimeout(hideT);
         send.classList.add("open");
         send.setAttribute("aria-expanded", "true");
@@ -449,6 +493,5 @@
         });
       });
     </script>
-
   </body>
 </html>
