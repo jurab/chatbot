@@ -105,6 +105,12 @@
         cursor: pointer;
       }
 
+      .send-btn.sending {
+        opacity: 0.6;
+        cursor: default;
+        pointer-events: none; /* block clicks/hover while waiting */
+      }
+
       .icon-btn {
         width: 36px;
         height: 36px;
@@ -298,6 +304,7 @@
       let conversationId = null;
       let selectedReaction = null;
       let hideT;
+      let isSending = false;
 
       function appendMessageBubble(msg) {
         if (!messagesEl) return;
@@ -306,6 +313,17 @@
         el.textContent = msg.text;
         messagesEl.appendChild(el);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      function setSending(state) {
+        isSending = state;
+        if (state) {
+          send.classList.add("sending");
+          send.setAttribute("aria-disabled", "true");
+        } else {
+          send.classList.remove("sending");
+          send.removeAttribute("aria-disabled");
+        }
       }
 
       async function ensureConversation() {
@@ -329,10 +347,17 @@
       }
 
       async function sendMessage() {
+        if (isSending) return; // don’t spam
         const value = input.value.trim();
         if (!value) return;
 
+        // optimistic ui: show user message immediately
+        const userMsg = { role: "user", text: value };
+        appendMessageBubble(userMsg);
+        input.value = "";
+
         try {
+          setSending(true);
           const convId = await ensureConversation();
 
           const payload = {
@@ -351,24 +376,28 @@
 
           if (!res.ok) {
             console.error("failed to send message", res.status);
+            // you COULD rollback ui here (remove last bubble), but for prototype let’s not
             return;
           }
 
-          const msg = await res.json();
+          // backend returns the assistant message
+          const assistantMsg = await res.json();
           console.log(
-            "SENT =>",
-            msg,
+            "ASSISTANT =>",
+            assistantMsg,
             selectedReaction ? `reaction: ${selectedReaction}` : ""
           );
 
-          appendMessageBubble(msg);
-          input.value = "";
+          appendMessageBubble(assistantMsg);
         } catch (err) {
           console.error("sendMessage error:", err);
+        } finally {
+          setSending(false);
         }
       }
 
       const openMenu = () => {
+        if (isSending) return; // no menu while locked
         clearTimeout(hideT);
         send.classList.add("open");
         send.setAttribute("aria-expanded", "true");
@@ -388,6 +417,7 @@
       send.addEventListener("focusout", scheduleClose);
 
       send.addEventListener("click", (e) => {
+        if (isSending) return;
         if (!e.target.closest(".options")) {
           void sendMessage();
         }
@@ -396,7 +426,9 @@
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          void sendMessage();
+          if (!isSending) {
+            void sendMessage();
+          }
         }
       });
 
@@ -417,5 +449,6 @@
         });
       });
     </script>
+
   </body>
 </html>

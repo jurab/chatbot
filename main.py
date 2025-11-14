@@ -1,4 +1,6 @@
 # main.py
+
+import time
 from typing import List
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -65,6 +67,7 @@ def get_conversation(conversation_id: int, db: Session = Depends(get_db)):
     return conv
 
 
+# main.py (only this endpoint changed)
 @app.post(
     "/conversations/{conversation_id}/messages",
     response_model=schemas.MessageRead,
@@ -82,12 +85,27 @@ def add_message(
     if not conv:
         raise HTTPException(status_code=404, detail="conversation not found")
 
-    msg = models.Message(
+    # 1) store user message
+    user_msg = models.Message(
         conversation_id=conversation_id,
-        role=payload.role,
+        role="user",
         text=payload.text,
     )
-    db.add(msg)
+    db.add(user_msg)
+    db.flush()  # get id without committing yet
+
+    # 2) create mock assistant reply
+    assistant_text = f"user message received, text: {payload.text}"
+    assistant_msg = models.Message(
+        conversation_id=conversation_id,
+        role="assistant",
+        text=assistant_text,
+    )
+    db.add(assistant_msg)
+
     db.commit()
-    db.refresh(msg)
-    return msg
+    db.refresh(assistant_msg)
+
+    time.sleep(2.5)
+    # return the assistant message (frontend already has the user one optimistically)
+    return assistant_msg
