@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>search ui prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0f1115;
+        --card: #1a1d24;
+        --muted: #818596;
+        --text: #e5e7ef;
+        --accent: #6ea1ff;
+        --ring: 0 0 0 4px rgba(110, 161, 255, 0.25);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        display: grid;
+        place-items: center;
+      }
+
+      .wrap {
+        width: min(920px, 92vw);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      /* messages area */
+
+      .messages {
+        max-height: 60vh;
+        overflow-y: auto;
+        padding-right: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .message {
+        max-width: 70%;
+        padding: 8px 12px;
+        border-radius: 16px;
+        font-size: 14px;
+        line-height: 1.4;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+      }
+
+      .message.user {
+        margin-left: auto;
+        background: var(--accent);
+        color: #05060a;
+        border-bottom-right-radius: 4px;
+      }
+
+      .message.assistant {
+        margin-right: auto;
+        background: var(--card);
+        border-bottom-left-radius: 4px;
+      }
+
+      .search {
+        position: relative;
+        background: #242834;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        padding: 14px;
+        gap: 10px;
+        box-shadow:
+          0 10px 30px rgba(0, 0, 0, 0.35),
+          inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      }
+
+      .icon-btn,
+      .send-btn {
+        display: grid;
+        place-items: center;
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        border-radius: 50%;
+        cursor: pointer;
+      }
+
+      .icon-btn {
+        width: 36px;
+        height: 36px;
+      }
+
+      .icon-btn:hover {
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        font-size: 18px;
+        color: var(--text);
+      }
+
+      .input::placeholder {
+        color: #a0a3ad;
+      }
+
+      .send-btn {
+        background: linear-gradient(180deg, #ffffff1a, #ffffff05);
+        width: 40px;
+        height: 40px;
+        box-shadow:
+          0 6px 16px rgba(0, 0, 0, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        transition:
+          transform 0.06s ease,
+          box-shadow 0.06s ease,
+          background 0.2s ease;
+        position: relative;
+      }
+
+      .send-btn:hover {
+        transform: translateY(-1px);
+      }
+
+      .send-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      }
+
+      .send-btn:focus-visible {
+        box-shadow: var(--ring);
+      }
+
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      /* options menu */
+      .options {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        right: 0;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .send-btn.open .options {
+        display: flex;
+      }
+
+      .chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--card);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 6px 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+        user-select: none;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 14px;
+        white-space: nowrap;
+      }
+
+      .chip:hover {
+        filter: brightness(1.1);
+      }
+
+      .emoji {
+        font-size: 18px;
+        line-height: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap" role="main">
+      <!-- messages list -->
+      <div class="messages" id="messages" aria-label="conversation log"></div>
+
+      <!-- input row -->
+      <div class="search" aria-label="search input">
+        <button class="icon-btn" type="button" aria-label="open new thread">
+          <svg
+            class="plus"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+
+        <input
+          class="input"
+          type="text"
+          name="message"
+          placeholder="type a message"
+          aria-label="type a message"
+        />
+
+        <div
+          class="send-btn"
+          id="sendBtn"
+          role="button"
+          aria-label="send"
+          aria-haspopup="true"
+          aria-expanded="false"
+          tabindex="0"
+        >
+          <span class="send-icon">💬</span>
+
+          <div class="options" role="menu" aria-label="choose reaction">
+            <button
+              class="chip"
+              type="button"
+              data-reaction="reset"
+              role="menuitem"
+            >
+              <span class="emoji">💬</span>
+              <span>no reaction</span>
+            </button>
+            <button
+              class="chip"
+              type="button"
+              data-reaction="smile"
+              role="menuitem"
+            >
+              <span class="emoji">😊</span>
+              <span>friendly</span>
+            </button>
+            <button
+              class="chip"
+              type="button"
+              data-reaction="thumbs"
+              role="menuitem"
+            >
+              <span class="emoji">👍</span>
+              <span>approval</span>
+            </button>
+            <button
+              class="chip"
+              type="button"
+              data-reaction="sparkles"
+              role="menuitem"
+            >
+              <span class="emoji">✨</span>
+              <span>fancy</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p class="note">
+        prototype only, messages come from sqlite, not from god.
+      </p>
+    </main>
+
+    <script>
+      const input = document.querySelector(".input");
+      const send = document.getElementById("sendBtn");
+      const sendIcon = send.querySelector(".send-icon");
+      const messagesEl = document.getElementById("messages");
+
+      const API_BASE = "http://localhost:8000";
+
+      let conversationId = null;
+      let selectedReaction = null;
+      let hideT;
+
+      function appendMessageBubble(msg) {
+        if (!messagesEl) return;
+        const el = document.createElement("div");
+        el.classList.add("message", msg.role || "user");
+        el.textContent = msg.text;
+        messagesEl.appendChild(el);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      async function ensureConversation() {
+        if (conversationId !== null) return conversationId;
+
+        const res = await fetch(`${API_BASE}/conversations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}"
+        });
+
+        if (!res.ok) {
+          console.error("failed to create conversation", res.status);
+          throw new Error("conversation create failed");
+        }
+
+        const data = await res.json();
+        conversationId = data.id;
+        console.log("NEW CONVERSATION =>", conversationId);
+        return conversationId;
+      }
+
+      async function sendMessage() {
+        const value = input.value.trim();
+        if (!value) return;
+
+        try {
+          const convId = await ensureConversation();
+
+          const payload = {
+            role: "user",
+            text: value
+          };
+
+          const res = await fetch(
+            `${API_BASE}/conversations/${convId}/messages`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            }
+          );
+
+          if (!res.ok) {
+            console.error("failed to send message", res.status);
+            return;
+          }
+
+          const msg = await res.json();
+          console.log(
+            "SENT =>",
+            msg,
+            selectedReaction ? `reaction: ${selectedReaction}` : ""
+          );
+
+          appendMessageBubble(msg);
+          input.value = "";
+        } catch (err) {
+          console.error("sendMessage error:", err);
+        }
+      }
+
+      const openMenu = () => {
+        clearTimeout(hideT);
+        send.classList.add("open");
+        send.setAttribute("aria-expanded", "true");
+      };
+
+      const scheduleClose = () => {
+        clearTimeout(hideT);
+        hideT = setTimeout(() => {
+          send.classList.remove("open");
+          send.setAttribute("aria-expanded", "false");
+        }, 180);
+      };
+
+      send.addEventListener("mouseenter", openMenu);
+      send.addEventListener("mouseleave", scheduleClose);
+      send.addEventListener("focusin", openMenu);
+      send.addEventListener("focusout", scheduleClose);
+
+      send.addEventListener("click", (e) => {
+        if (!e.target.closest(".options")) {
+          void sendMessage();
+        }
+      });
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          void sendMessage();
+        }
+      });
+
+      document.querySelectorAll(".chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const reaction = chip.dataset.reaction;
+          if (reaction === "reset") {
+            selectedReaction = null;
+            sendIcon.textContent = "💬";
+          } else {
+            selectedReaction = reaction;
+            sendIcon.textContent =
+              chip.querySelector(".emoji").textContent;
+          }
+          console.log("REACTION =>", reaction);
+          send.classList.remove("open");
+          send.setAttribute("aria-expanded", "false");
+        });
+      });
+    </script>
+  </body>
+</html>
