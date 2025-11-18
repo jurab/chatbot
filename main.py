@@ -1,3 +1,5 @@
+
+# libraries
 import os
 import asyncio
 import json
@@ -9,10 +11,16 @@ from sse_starlette.sse import EventSourceResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from openai import OpenAI
+from database import Base, engine, SessionLocal
 
+# modules
 import models
 import schemas
-from database import Base, engine, SessionLocal
+
+# prompts
+from prompts import SYSTEM_PROMPT
+from tools import SQL_TOOL_SPEC
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -66,55 +74,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-DB_SCHEMA_DOC = """
-database schema (sqlite):
-
-table products:
-  - id INTEGER PRIMARY KEY
-  - name TEXT
-  - price REAL
-  - description TEXT
-
-table conversations:
-  - id INTEGER PRIMARY KEY
-  - created_at DATETIME
-  - api_key TEXT NULLABLE
-
-table messages:
-  - id INTEGER PRIMARY KEY
-  - conversation_id INTEGER (fk -> conversations.id)
-  - created_at DATETIME
-  - role TEXT ('user' or 'assistant')
-  - text TEXT
-"""
-
-
-SQL_TOOL_SPEC = {
-    "type": "function",
-    "function": {
-        "name": "run_sql",
-        "description": (
-            "execute a READ-ONLY SQL SELECT query against the app database. "
-            "tables available: products, conversations, messages. "
-            "only use existing columns from the provided schema."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "a complete sql SELECT statement. "
-                        "must start with SELECT."
-                    ),
-                }
-            },
-            "required": ["query"],
-        },
-    },
-}
 
 
 def run_readonly_sql(db: Session, query: str):
@@ -218,14 +177,7 @@ async def stream_assistant(
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "you are a helpful assistant for a tiny online shop. "
-                    "you can query the internal sqlite database using the run_sql tool. "
-                    "run_sql is READ-ONLY: only use SELECT queries. "
-                    "you MUST NOT modify data. "
-                    "here is the database schema:\n\n"
-                    f"{DB_SCHEMA_DOC}"
-                ),
+                "content": SYSTEM_PROMPT,
             },
         ]
         messages.extend(
