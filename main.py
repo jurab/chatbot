@@ -1,8 +1,8 @@
-
 # libraries
 import os
 import asyncio
 import json
+import traceback
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +18,7 @@ import models
 import schemas
 
 # prompts
-from prompts import SYSTEM_PROMPT
+from prompts import SAFETY_SYSTEM_PROMPT, SYSTEM_PROMPT
 from tools import SQL_TOOL_SPEC
 
 
@@ -90,6 +90,40 @@ def run_readonly_sql(db: Session, query: str):
     result = db.execute(text(query))
     rows = [dict(row._mapping) for row in result]
     return rows
+
+
+def run_safety_check(client: OpenAI, user_text: str) -> dict:
+    """call openai once to classify the latest user message."""
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-5-mini",  # or whatever actually exists in your env
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": SAFETY_SYSTEM_PROMPT},
+                {"role": "user", "content": user_text or ""},
+            ]
+        )
+
+        raw = resp.choices[0].message.content or "{}"
+
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("safety response not a json object")
+
+        data.setdefault("safe", True)
+        data.setdefault("reason", "safety model returned incomplete json")
+        data.setdefault("category", "unknown")
+
+        return data
+
+    except Exception as e:
+        print(traceback.format_exc())
+        return {
+            "safe": True,
+            "reason": f"safety_check_error: {e}",
+            "category": "error",
+        }
 
 
 @app.post("/conversations", response_model=schemas.ConversationRead)
@@ -172,6 +206,42 @@ async def stream_assistant(
             return
 
         client = OpenAI(api_key=api_key)
+
+        # safety = run_safety_check(client, last_user.text or "")
+
+        # # stream safety decision as a separate event for the frontend to inspect/log
+        # try:
+        #     yield {
+        #         "event": "safety",
+        #         "data": json.dumps(safety),
+        #     }
+        #     await asyncio.sleep(0)
+        # except Exception:
+        #     # if sse send explodes, ignore; the main flow still works
+        #     pass
+
+        # if not safety.get("safe", True):
+        #     # block the request and explain why; do NOT call main model or tools
+        #     msg = (
+        #         "this request was blocked by the security filter.\n\n"
+        #         f"reason: {safety.get('reason', '')}\n"
+        #         f"category: {safety.get('category', 'unknown')}"
+        #     )
+        #     for ch in msg:
+        #         accumulated += ch
+        #         yield {"event": "token", "data": ch}
+        #         await asyncio.sleep(0)
+
+        #     yield {"event": "done", "data": "[DONE]"}
+
+        #     assistant_msg = models.Message(
+        #         conversation_id=conversation_id,
+        #         role="assistant",
+        #         text=accumulated,
+        #     )
+        #     db.add(assistant_msg)
+        #     db.commit()
+        #     return
 
         # build chat history with a system prompt that mentions the tool
         messages = [

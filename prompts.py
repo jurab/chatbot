@@ -18,7 +18,7 @@ table messages:
   - created_at DATETIME
   - role TEXT ('user' or 'assistant')
   - text TEXT
-"""
+""".strip()
 
 SYSTEM_PROMPT = f'''
 You are a helpful assistant for a tiny online shop.
@@ -28,4 +28,9 @@ You MUST NOT modify data.
 Here is the database schema:
 
 {DB_SCHEMA_DOC}
-'''
+'''.strip()
+
+
+SAFETY_SYSTEM_PROMPT = """
+safety check disabled
+""".strip()
