@@ -4,13 +4,17 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>search ui prototype</title>
+
+    <!-- font setup -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+
     <style>
+      /* global theme tokens */
       :root {
         --bg: #0f1115;
         --card: #1a1d24;
@@ -39,6 +43,7 @@
         place-items: center;
       }
 
+      /* main layout wrapper */
       .wrap {
         width: min(920px, 92vw);
         display: flex;
@@ -46,8 +51,7 @@
         gap: 16px;
       }
 
-      /* messages area */
-
+      /* messages area (scrolling chat log) */
       .messages {
         max-height: 60vh;
         overflow-y: auto;
@@ -57,6 +61,7 @@
         gap: 8px;
       }
 
+      /* base chat bubble */
       .message {
         max-width: 70%;
         padding: 8px 12px;
@@ -67,6 +72,7 @@
         white-space: pre-wrap;
       }
 
+      /* outgoing (user) bubble */
       .message.user {
         margin-left: auto;
         background: var(--accent);
@@ -74,18 +80,28 @@
         border-bottom-right-radius: 4px;
       }
 
+      /* incoming (assistant/system) bubble */
       .message.assistant {
         margin-right: auto;
         background: var(--card);
         border-bottom-left-radius: 4px;
       }
 
+      .message.system {
+        margin-right: auto;
+        background: transparent;
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      /* placeholder bubble while we wait for first tokens */
       .message.assistant.pending {
         color: var(--muted);
         font-style: italic;
         animation: awaitingPulse 1.2s ease-in-out infinite;
       }
 
+      /* subtle animation for "awaiting openai..." text */
       @keyframes awaitingPulse {
         0% {
           opacity: 0.4;
@@ -101,6 +117,7 @@
         }
       }
 
+      /* input row container (the "search bar" look) */
       .search {
         position: relative;
         background: #242834;
@@ -114,33 +131,7 @@
           inset 0 1px 0 rgba(255, 255, 255, 0.03);
       }
 
-      .icon-btn,
-      .send-btn {
-        display: grid;
-        place-items: center;
-        border: none;
-        outline: none;
-        background: transparent;
-        color: var(--text);
-        border-radius: 50%;
-        cursor: pointer;
-      }
-
-      .send-btn.sending {
-        opacity: 0.6;
-        cursor: default;
-        pointer-events: none;
-      }
-
-      .icon-btn {
-        width: 36px;
-        height: 36px;
-      }
-
-      .icon-btn:hover {
-        background: rgba(255, 255, 255, 0.06);
-      }
-
+      /* plain text input for messages */
       .input {
         flex: 1;
         background: transparent;
@@ -154,10 +145,18 @@
         color: #a0a3ad;
       }
 
+      /* "send" button on the right side of the input row */
       .send-btn {
+        display: grid;
+        place-items: center;
         background: linear-gradient(180deg, #ffffff1a, #ffffff05);
         width: 40px;
         height: 40px;
+        border-radius: 50%;
+        border: none;
+        outline: none;
+        color: var(--text);
+        cursor: pointer;
         box-shadow:
           0 6px 16px rgba(0, 0, 0, 0.3),
           inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -181,74 +180,29 @@
         box-shadow: var(--ring);
       }
 
+      /* sending state: used to visually "disable" the button while we stream */
+      .send-btn.sending {
+        opacity: 0.6;
+        cursor: default;
+        pointer-events: none;
+      }
+
+      /* small footer note */
       .note {
         font-size: 12px;
         color: var(--muted);
       }
-
-      /* options menu */
-      .options {
-        position: absolute;
-        bottom: calc(100% + 8px);
-        right: 0;
-        display: none;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .send-btn.open .options {
-        display: flex;
-      }
-
-      .chip {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: var(--card);
-        color: var(--text);
-        border-radius: 999px;
-        padding: 6px 10px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
-        cursor: pointer;
-        user-select: none;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        font-size: 14px;
-        white-space: nowrap;
-      }
-
-      .chip:hover {
-        filter: brightness(1.1);
-      }
-
-      .emoji {
-        font-size: 18px;
-        line-height: 1;
-      }
     </style>
   </head>
+
   <body>
     <main class="wrap" role="main">
-      <!-- messages list -->
+      <!-- scrolling list of chat messages -->
       <div class="messages" id="messages" aria-label="conversation log"></div>
 
-      <!-- input row -->
-      <div class="search" aria-label="search input">
-        <button class="icon-btn" type="button" aria-label="open new thread">
-          <svg
-            class="plus"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-
+      <!-- input row: text input + send button -->
+      <div class="search" aria-label="chat input">
+        <!-- only a text input now; no attachment button, no emoji modes -->
         <input
           class="input"
           type="text"
@@ -257,96 +211,87 @@
           aria-label="type a message"
         />
 
+        <!-- circular "send" button on the right -->
         <div
           class="send-btn"
           id="sendBtn"
           role="button"
-          aria-label="send"
-          aria-haspopup="true"
-          aria-expanded="false"
+          aria-label="send message"
           tabindex="0"
         >
-          <span class="send-icon">💬</span>
-
-          <div class="options" role="menu" aria-label="choose reaction">
-            <button
-              class="chip"
-              type="button"
-              data-reaction="reset"
-              role="menuitem"
-            >
-              <span class="emoji">💬</span>
-              <span>no reaction</span>
-            </button>
-            <button
-              class="chip"
-              type="button"
-              data-reaction="smile"
-              role="menuitem"
-            >
-              <span class="emoji">😊</span>
-              <span>friendly</span>
-            </button>
-            <button
-              class="chip"
-              type="button"
-              data-reaction="thumbs"
-              role="menuitem"
-            >
-              <span class="emoji">👍</span>
-              <span>approval</span>
-            </button>
-            <button
-              class="chip"
-              type="button"
-              data-reaction="sparkles"
-              role="menuitem"
-            >
-              <span class="emoji">✨</span>
-              <span>fancy</span>
-            </button>
-          </div>
+          <span class="send-icon">➡️</span>
         </div>
       </div>
 
+      <!-- openai api key input: stored per-conversation server-side -->
       <input
         id="apiKeyInput"
         type="text"
         placeholder="openai api key"
-        style="width: 100%; padding: 6px 10px; border-radius: 8px; background:#1a1d24; border:1px solid #333; color:#e5e7ef; font-size:14px;"
+        style="
+          width: 100%;
+          padding: 6px 10px;
+          border-radius: 8px;
+          background: #1a1d24;
+          border: 1px solid #333;
+          color: #e5e7ef;
+          font-size: 14px;
+        "
       />
 
+      <!-- tiny disclaimer; feel free to change the copy to fit the workshop -->
       <p class="note">
-          wired to openai, running on sqlite. local toy, zero guarantees
+        wired to openai, running on sqlite. local toy, zero guarantees.
       </p>
     </main>
 
     <script>
+      // main ui elements
       const input = document.querySelector(".input");
       const send = document.getElementById("sendBtn");
-      const sendIcon = send.querySelector(".send-icon");
       const messagesEl = document.getElementById("messages");
 
+      // backend base url for the fastapi server
       const API_BASE = "http://localhost:8000";
 
-      let conversationId = null;
-      let selectedReaction = null;
-      let hideT;
-      let isSending = false;
+      // simple in-memory state
+      let conversationId = null; // assigned once by /conversations
+      let isSending = false; // lock to avoid multiple parallel sends
 
+      // api key: user provides once, then we hide the input
       let apiKeyLocked = false;
       const apiKeyInput = document.getElementById("apiKeyInput");
 
+      /**
+       * append a single chat bubble to the messages panel.
+       *
+       * msg = {
+       *   role: "user" | "assistant" | "system",
+       *   text: string
+       * }
+       *
+       * returns: the created DOM element.
+       */
       function appendMessageBubble(msg) {
         if (!messagesEl) return null;
+
         const el = document.createElement("div");
         el.classList.add("message", msg.role || "user");
         el.textContent = msg.text;
         messagesEl.appendChild(el);
+
+        // auto-scroll to bottom so new messages are always visible
         messagesEl.scrollTop = messagesEl.scrollHeight;
         return el;
       }
 
+      /**
+       * toggle "sending" state on the send button.
+       *
+       * when sending:
+       *   - add a CSS class for style changes
+       *   - mark aria-disabled for accessibility
+       */
       function setSending(state) {
         isSending = state;
         if (state) {
@@ -358,13 +303,22 @@
         }
       }
 
+      /**
+       * ensure we have a conversation id from the backend.
+       *
+       * on first call:
+       *   - POST /conversations
+       *   - store the returned id
+       * on later calls:
+       *   - just reuse the cached id
+       */
       async function ensureConversation() {
         if (conversationId !== null) return conversationId;
 
         const res = await fetch(`${API_BASE}/conversations`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: "{}"
+          body: "{}",
         });
 
         if (!res.ok) {
@@ -378,19 +332,32 @@
         return conversationId;
       }
 
+      /**
+       * open an SSE connection to stream the assistant response.
+       *
+       * backend sends Server-Sent Events with these event types:
+       *   - "token": individual pieces of the assistant reply text
+       *   - "tool": tool call logs (sql queries + results)
+       *   - "safety": (optional) verdict from run_safety_check
+       *   - "done": indicates the stream is finished
+       */
       function streamAssistant(convId) {
         const url = `${API_BASE}/conversations/${convId}/stream`;
         const es = new EventSource(url);
 
+        // buffer for the current assistant message being streamed
         let buffer = "";
 
+        // create an initial placeholder bubble: "awaiting openai..."
         let bubble = appendMessageBubble({
           role: "assistant",
           text: "awaiting openai...",
         });
         if (bubble) bubble.classList.add("pending");
 
+        // handle incremental text tokens from backend
         es.addEventListener("token", (e) => {
+          // safety net: if bubble somehow doesn't exist, recreate
           if (!bubble) {
             bubble = appendMessageBubble({
               role: "assistant",
@@ -398,32 +365,58 @@
             });
           }
 
+          // first real token: remove pending styling + clear placeholder text
           if (bubble.classList.contains("pending")) {
             bubble.classList.remove("pending");
             bubble.textContent = "";
             buffer = "";
           }
 
+          // append incoming token to buffer and update bubble text
           buffer += e.data;
           bubble.textContent = buffer;
+
+          // keep the scroll pinned to bottom
           messagesEl.scrollTop = messagesEl.scrollHeight;
         });
 
+        // tool events: sql tool usage (query + result payload)
         es.addEventListener("tool", (e) => {
           try {
             const payload = JSON.parse(e.data);
             console.log("[tool event]", payload);
-            // if you want ui for this later, you can render it somewhere instead
+            // this is where you could render a visible "tool log" ui component
           } catch (err) {
             console.error("failed to parse tool event", e.data, err);
           }
         });
 
+        // safety events: verdict from run_safety_check if enabled on backend
+        es.addEventListener("safety", (e) => {
+          try {
+            const verdict = JSON.parse(e.data);
+            console.log("[safety event]", verdict);
+
+            const label = verdict.safe ? "SAFE" : "BLOCKED";
+            const category = verdict.category || "unknown";
+            const reason = verdict.reason || "";
+
+            appendMessageBubble({
+              role: "system",
+              text: `safety: ${label.toLowerCase()} (${category}) – ${reason}`,
+            });
+          } catch (err) {
+            console.error("failed to parse safety event", e.data, err);
+          }
+        });
+
+        // done event: server is done streaming, close the connection
         es.addEventListener("done", () => {
           es.close();
           setSending(false);
         });
 
+        // generic sse error handler
         es.onerror = (e) => {
           console.error("sse error", e);
           es.close();
@@ -431,12 +424,22 @@
         };
       }
 
+      /**
+       * send the current input value as a user message.
+       *
+       * flow:
+       *   1) optimistic render of a user bubble
+       *   2) ensure conversation id exists
+       *   3) POST user message (+ api key) to /messages
+       *   4) on success, start streaming assistant response
+       */
       async function sendMessage() {
         if (isSending) return;
+
         const value = input.value.trim();
         if (!value) return;
 
-        // optimistic ui: show user message immediately
+        // optimistic ui: show the user message immediately
         const userMsg = { role: "user", text: value };
         appendMessageBubble(userMsg);
         input.value = "";
@@ -445,17 +448,19 @@
           setSending(true);
           const convId = await ensureConversation();
 
-          const key = document.getElementById("apiKeyInput").value.trim();
+          // capture api key from input; hide the field after first use
+          const key = apiKeyInput.value.trim();
 
           if (!apiKeyLocked) {
             apiKeyLocked = true;
             apiKeyInput.style.display = "none";
           }
 
+          // payload matches MessageCreate schema expected by backend
           const payload = {
             role: "user",
             text: value,
-            key: key  // let the backend choke on it later
+            key: key, // stored server-side on the conversation for the workshop
           };
 
           const res = await fetch(
@@ -473,7 +478,7 @@
             return;
           }
 
-          // backend accepted user msg, now stream assistant reply
+          // backend accepted the message => start streaming assistant reply
           streamAssistant(convId);
         } catch (err) {
           console.error("sendMessage error:", err);
@@ -481,33 +486,21 @@
         }
       }
 
-      const openMenu = () => {
+      /**
+       * click on the send button triggers sendMessage().
+       *
+       * note: send button is a <div> with role="button" for styling purposes.
+       */
+      send.addEventListener("click", () => {
         if (isSending) return;
-        clearTimeout(hideT);
-        send.classList.add("open");
-        send.setAttribute("aria-expanded", "true");
-      };
-
-      const scheduleClose = () => {
-        clearTimeout(hideT);
-        hideT = setTimeout(() => {
-          send.classList.remove("open");
-          send.setAttribute("aria-expanded", "false");
-        }, 180);
-      };
-
-      send.addEventListener("mouseenter", openMenu);
-      send.addEventListener("mouseleave", scheduleClose);
-      send.addEventListener("focusin", openMenu);
-      send.addEventListener("focusout", scheduleClose);
-
-      send.addEventListener("click", (e) => {
-        if (isSending) return;
-        if (!e.target.closest(".options")) {
-          void sendMessage();
-        }
+        void sendMessage();
       });
 
+      /**
+       * allow pressing Enter inside the text input to send the message.
+       *
+       * if you ever want multiline input, this is where you'd gate on shift/meta.
+       */
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -515,23 +508,6 @@
             void sendMessage();
           }
         }
-      });
-
-      document.querySelectorAll(".chip").forEach((chip) => {
-        chip.addEventListener("click", () => {
-          const reaction = chip.dataset.reaction;
-          if (reaction === "reset") {
-            selectedReaction = null;
-            sendIcon.textContent = "💬";
-          } else {
-            selectedReaction = reaction;
-            sendIcon.textContent =
-              chip.querySelector(".emoji").textContent;
-          }
-          console.log("REACTION =>", reaction);
-          send.classList.remove("open");
-          send.setAttribute("aria-expanded", "false");
-        });
       });
     </script>
   </body>
