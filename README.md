@@ -1,4 +1,8 @@
 
+Project for an LLM Security workshop.
+API keys stored in DB for an sql injection demonstration.
+
+
 ## Installation:
 requires Python 3.11.7
 ```
