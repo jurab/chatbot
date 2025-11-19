@@ -9,6 +9,7 @@ requires Python 3.11.7
 clone repository
 cd to repository folder
 python3 -m venv .venv
+pip install -r requirements.txt
 ```
 
 ----
