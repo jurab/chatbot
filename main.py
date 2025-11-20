@@ -309,44 +309,44 @@ async def stream_assistant(
         #      invoking the main model or any tools.
         # ------------------------------------------------------------------
 
-        # safety = run_safety_check(client, last_user.text or "")
+        safety = run_safety_check(client, last_user.text or "")
 
-        # # stream safety decision as a separate event for the frontend to inspect/log
-        # try:
-        #     yield {
-        #         "event": "safety",
-        #         "data": json.dumps(safety),
-        #     }
-        #     await asyncio.sleep(0)
-        # except Exception:
-        #     # if sending the safety event via SSE fails, ignore it;
-        #     # the main flow still runs (fail-open on telemetry, not on functionality)
-        #     pass
-        #
-        # if not safety.get("safe", True):
-        #     # if the safety filter flags this as unsafe, we *do not* call tools or main model
-        #     msg = (
-        #         "this request was blocked by the security filter.\n\n"
-        #         f"reason: {safety.get('reason', '')}\n"
-        #         f"category: {safety.get('category', 'unknown')}"
-        #     )
-        #     for ch in msg:
-        #         accumulated += ch
-        #         yield {"event": "token", "data": ch}
-        #         await asyncio.sleep(0)
-        #
-        #     # signal completion
-        #     yield {"event": "done", "data": "[DONE]"}
-        #
-        #     # persist the blocking message as an assistant response
-        #     assistant_msg = models.Message(
-        #         conversation_id=conversation_id,
-        #         role="assistant",
-        #         text=accumulated,
-        #     )
-        #     db.add(assistant_msg)
-        #     db.commit()
-        #     return
+        # stream safety decision as a separate event for the frontend to inspect/log
+        try:
+            yield {
+                "event": "safety",
+                "data": json.dumps(safety),
+            }
+            await asyncio.sleep(0)
+        except Exception:
+            # if sending the safety event via SSE fails, ignore it;
+            # the main flow still runs (fail-open on telemetry, not on functionality)
+            pass
+
+        if not safety.get("safe", True):
+            # if the safety filter flags this as unsafe, we *do not* call tools or main model
+            msg = (
+                "this request was blocked by the security filter.\n\n"
+                f"reason: {safety.get('reason', '')}\n"
+                f"category: {safety.get('category', 'unknown')}"
+            )
+            for ch in msg:
+                accumulated += ch
+                yield {"event": "token", "data": ch}
+                await asyncio.sleep(0)
+
+            # signal completion
+            yield {"event": "done", "data": "[DONE]"}
+
+            # persist the blocking message as an assistant response
+            assistant_msg = models.Message(
+                conversation_id=conversation_id,
+                role="assistant",
+                text=accumulated,
+            )
+            db.add(assistant_msg)
+            db.commit()
+            return
 
         # ------------------------------------------------------------------
         # MAIN TOOL-USING ASSISTANT FLOW
