@@ -17,6 +17,11 @@ from database import Base, engine, SessionLocal
 import models
 import schemas
 
+# seed_mediaplan.py
+import csv
+from datetime import datetime
+from models import MediaPlanRow
+
 # prompts
 # SYSTEM_PROMPT: main agent behavior, including how to use sql tools
 # SAFETY_SYSTEM_PROMPT: separate prompt just for the security pre-check
@@ -39,47 +44,160 @@ app.add_middleware(
 )
 
 
-def seed_products():
-    """
-    seed a few demo products into the Product table.
+def _strip_or_none(x: str | None) -> str | None:
+    if x is None:
+        return None
+    x = x.strip()
+    return x or None
 
-    this is intentionally simple:
-      - runs at import time
-      - only seeds if there's no product yet
-    nice for showing sql tool queries against a non-empty table.
-    """
+
+def parse_date(x: str | None, field: str, rownum: int):
+    s = _strip_or_none(x)
+    if s is None:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        raise ValueError(f"invalid date in column '{field}' row {rownum}: {s!r}")
+
+
+def parse_float(x: str | None, field: str, rownum: int):
+    s = _strip_or_none(x)
+    if s is None:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        raise ValueError(f"invalid float in column '{field}' row {rownum}: {s!r}")
+
+
+def parse_int(x: str | None, field: str, rownum: int):
+    s = _strip_or_none(x)
+    if s is None:
+        return None
+    try:
+        # allow "3.0" etc
+        return int(float(s))
+    except Exception:
+        raise ValueError(f"invalid int in column '{field}' row {rownum}: {s!r}")
+
+
+def seed_mediaplan_from_csv(path: str):
     db = SessionLocal()
     try:
-        # only seed once: if any product exists, bail
-        exists = db.query(models.Product).first()
+        # only seed once
+        exists = db.query(MediaPlanRow).first()
         if exists:
             return
 
-        demo_products = [
-            models.Product(
-                name="basic widget",
-                price=9.99,
-                description="a simple widget for everyday use.",
-            ),
-            models.Product(
-                name="premium widget",
-                price=29.99,
-                description="fancier widget, allegedly worth it.",
-            ),
-            models.Product(
-                name="mystery box",
-                price=49.99,
-                description="you probably shouldn't buy this.",
-            ),
-        ]
-        db.add_all(demo_products)
-        db.commit()
+        with open(path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+
+            rows = []
+            for idx, row in enumerate(reader, start=2):  # header is row 1
+                r = MediaPlanRow(
+                    source=row["source"],
+                    type=row["type"],
+                    department=row["department"],
+                    bu_cost_center=row["bu_cost_center"],
+                    billed_cost_center=row["billed_cost_center"],
+                    cost_center=row["cost_center"],
+                    business_unit=row["business_unit"],
+                    business_internal=row["business_internal"],
+                    revenue_type=row["revenue_type"],
+                    cc_costs_type=row["cc_costs_type"],
+                    bu_costs_type=row["bu_costs_type"],
+                    client=row["client"],
+                    client_status=row["client_status"],
+                    pm=row["pm"],
+                    sm=row["sm"],
+                    project_id=row["project_id"],
+                    project=row["project"],
+                    project_status=row["project_status"],
+                    category=row["category"],
+                    detail=row["detail"],
+                    media_type=row["media_type"],
+                    paid_by=row["paid_by"],
+
+                    month=parse_int(row["month"], "month", idx),
+                    year=parse_int(row["year"], "year", idx),
+
+                    duzp=parse_date(row["duzp"], "duzp", idx),
+                    cf_date=parse_date(row["cf_date"], "cf_date", idx),
+                    dph_date=parse_date(row["dph_date"], "dph_date", idx),
+
+                    id_mediaplan=parse_int(row["id_mediaplan"], "id_mediaplan", idx),
+                    mediaplan=row["mediaplan"],
+                    invoice_number=row["invoice_number"],
+                    invoice_issue_date=parse_date(row["invoice_issue_date"], "invoice_issue_date", idx),
+                    invoice_due_date=parse_date(row["invoice_due_date"], "invoice_due_date", idx),
+                    invoice_payment_date=parse_date(row["invoice_payment_date"], "invoice_payment_date", idx),
+
+                    forecast_level=parse_int(row["forecast_level"], "forecast_level", idx),
+                    main_status=row["main_status"],
+                    finance_status=row["finance_status"],
+                    cf_status=row["cf_status"],
+                    probability=parse_float(row["probability"], "probability", idx),
+                    hours=parse_float(row["hours"], "hours", idx),
+
+                    firma=row["firma"],
+                    industry=row["industry"],
+                    cost_category=row["cost_category"],
+                    fc_source=row["fc_source"],
+                    fc_source_prepayments=row["fc_source_prepayments"],
+                    client_logo=row["client_logo"],
+                    pm_email=row["pm_email"],
+                    pm_picture=row["pm_picture"],
+
+                    price_fc_revenues=parse_float(row["price_fc_revenues"], "price_fc_revenues", idx),
+                    price_fc_revenues_prepayments=parse_float(row["price_fc_revenues_prepayments"], "price_fc_revenues_prepayments", idx),
+                    price_fc_costs=parse_float(row["price_fc_costs"], "price_fc_costs", idx),
+                    price_fc_costs_prepayments=parse_float(row["price_fc_costs_prepayments"], "price_fc_costs_prepayments", idx),
+
+                    price_bp_revenues=parse_float(row["price_bp_revenues"], "price_bp_revenues", idx),
+                    price_bp_revenues_prepayments=parse_float(row["price_bp_revenues_prepayments"], "price_bp_revenues_prepayments", idx),
+                    price_bp_costs=parse_float(row["price_bp_costs"], "price_bp_costs", idx),
+                    price_bp_costs_prepayments=parse_float(row["price_bp_costs_prepayments"], "price_bp_costs_prepayments", idx),
+
+                    price_bp_revised_revenues=parse_float(row["price_bp_revised_revenues"], "price_bp_revised_revenues", idx),
+                    price_bp_revised_revenues_prepayments=parse_float(row["price_bp_revised_revenues_prepayments"], "price_bp_revised_revenues_prepayments", idx),
+                    price_bp_revised_costs=parse_float(row["price_bp_revised_costs"], "price_bp_revised_costs", idx),
+                    price_bp_revised_costs_prepayments=parse_float(row["price_bp_revised_costs_prepayments"], "price_bp_revised_costs_prepayments", idx),
+
+                    price_real_revenues=parse_float(row["price_real_revenues"], "price_real_revenues", idx),
+                    price_real_revenues_prepayments=parse_float(row["price_real_revenues_prepayments"], "price_real_revenues_prepayments", idx),
+                    price_real_revenues_findb=parse_float(row["price_real_revenues_findb"], "price_real_revenues_findb", idx),
+                    price_real_costs=parse_float(row["price_real_costs"], "price_real_costs", idx),
+
+                    forecast_fc_revenues=parse_float(row["forecast_fc_revenues"], "forecast_fc_revenues", idx),
+                    forecast_fc_revenues_prepayments=parse_float(row["forecast_fc_revenues_prepayments"], "forecast_fc_revenues_prepayments", idx),
+                    forecast_fc_costs=parse_float(row["forecast_fc_costs"], "forecast_fc_costs", idx),
+                    forecast_fc_costs_prepayments=parse_float(row["forecast_fc_costs_prepayments"], "forecast_fc_costs_prepayments", idx),
+                    forecast_fc_revenue_cm=parse_float(row["forecast_fc_revenue_cm"], "forecast_fc_revenue_cm", idx),
+                    forecast_fc_costs_cm=parse_float(row["forecast_fc_costs_cm"], "forecast_fc_costs_cm", idx),
+
+                    forecast_fc_real_up_to_date_revenues=parse_float(row["forecast_fc_real_up_to_date_revenues"], "forecast_fc_real_up_to_date_revenues", idx),
+                    forecast_fc_real_up_to_date_revenues_prepayments=parse_float(row["forecast_fc_real_up_to_date_revenues_prepayments"], "forecast_fc_real_up_to_date_revenues_prepayments", idx),
+                    price_fc_real_up_to_date_revenues_prepayments=parse_float(row["price_fc_real_up_to_date_revenues_prepayments"], "price_fc_real_up_to_date_revenues_prepayments", idx),
+                    forecast_fc_real_up_to_date_costs=parse_float(row["forecast_fc_real_up_to_date_costs"], "forecast_fc_real_up_to_date_costs", idx),
+                    forecast_fc_real_up_to_date_costs_prepayments=parse_float(row["forecast_fc_real_up_to_date_costs_prepayments"], "forecast_fc_real_up_to_date_costs_prepayments", idx),
+                    price_fc_real_up_to_date_costs_prepayments=parse_float(row["price_fc_real_up_to_date_costs_prepayments"], "price_fc_real_up_to_date_costs_prepayments", idx),
+                )
+                rows.append(r)
+
+            # all parsed ok => bulk insert
+            db.add_all(rows)
+            db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
 
 # seed once when the module is imported
-seed_products()
+seed_mediaplan_from_csv("mediaplan.csv")
 
 
 def get_db():
@@ -103,19 +221,25 @@ def run_readonly_sql(db: Session, query: str):
     - does not deeply validate the rest of the statement
     - uses sqlalchemy.text for raw sql
     """
-    q = query.lstrip().lower()
-    if not q.startswith("select"):
-        # we only allow SELECT to avoid obvious write operations
-        raise ValueError("only SELECT queries are allowed in this environment")
+    try:
+        q = query.lstrip().lower()
+        if not q.startswith("select"):
+            # we only allow SELECT to avoid obvious write operations
+            raise ValueError("only SELECT queries are allowed in this environment")
 
-    # extra paranoia if you want to lock things down further:
-    # forbidden = ["pragma", "attach", "insert", "update", "delete", "drop", "alter"]
-    # if any(tok in q for tok in forbidden):
-    #     raise ValueError("query contains forbidden keywords")
+        # extra paranoia if you want to lock things down further:
+        # forbidden = ["pragma", "attach", "insert", "update", "delete", "drop", "alter"]
+        # if any(tok in q for tok in forbidden):
+        #     raise ValueError("query contains forbidden keywords")
 
-    result = db.execute(text(query))
-    # convert each row to a plain dict so it's easy to json-serialize
-    rows = [dict(row._mapping) for row in result]
+        result = db.execute(text(query))
+        # convert each row to a plain dict so it's easy to json-serialize
+        rows = [dict(row._mapping) for row in result]
+
+    except Exception as e:
+        print(traceback.format_exc())
+        raise e
+
     return rows
 
 
